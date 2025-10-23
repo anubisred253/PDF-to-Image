@@ -8,11 +8,15 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
-    <ApplicationIcon>pdf-pic.ico</ApplicationIcon>
+    <ApplicationIcon>pixpdf.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="pdf-pic.ico" />
+    <None Remove="pixpdf.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="pixpdf.ico" />
   </ItemGroup>
 
   <ItemGroup>

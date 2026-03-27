@@ -6,3 +6,6 @@
 bin/
 obj/
 发布/
+_rendercheck/
+_rendercheck_out/
+*.pdf

@@ -1,5 +1,6 @@
-﻿using System;
+using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using PDFtoImage;
@@ -8,35 +9,31 @@ namespace PixPDF
 {
     public partial class Form1 : Form
     {
-        private string[]? selectedFilePaths = null;
+        private string[]? selectedFilePaths;
 
         public Form1()
         {
             InitializeComponent();
 
-            // 将窗体的 StartPosition 设置为屏幕中央
-            this.StartPosition = FormStartPosition.CenterScreen;
+            StartPosition = FormStartPosition.CenterScreen;
+            MaximizeBox = false;
+            FormBorderStyle = FormBorderStyle.FixedSingle;
 
-            // 禁止窗口最大化和调整尺寸
-            this.MaximizeBox = false;
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
-
-            // 配置 hint TextBox
-            hint.BorderStyle = BorderStyle.None;  // 去掉黑框
-            hint.Multiline = true;                // 启用多行
-            hint.WordWrap = true;                 // 启用自动换行
-            hint.Height = 40; // 设置合适的高度
-
-            // 文件选择按钮点击事件
             selectfile.Click += Selectfile_Click;
-
-            // 转换按钮点击事件
             conversion.Click += Conversion_Click;
+
+            dropPanel.DragEnter += DropPanel_DragEnter;
+            dropPanel.DragDrop += DropPanel_DragDrop;
+            dropPanel.Click += DropPanel_Click;
+            dropHintLabel.Click += DropPanel_Click;
+            fileSummaryLabel.Click += DropPanel_Click;
+
+            UpdateSelectedFiles(null);
         }
 
         private void Selectfile_Click(object? sender, EventArgs e)
         {
-            OpenFileDialog openFileDialog = new OpenFileDialog
+            using OpenFileDialog openFileDialog = new OpenFileDialog
             {
                 Filter = "PDF Files|*.pdf",
                 Multiselect = true
@@ -44,9 +41,31 @@ namespace PixPDF
 
             if (openFileDialog.ShowDialog() == DialogResult.OK)
             {
-                selectedFilePaths = openFileDialog.FileNames;
-                hint.Text = string.Join(", ", openFileDialog.SafeFileNames);
+                UpdateSelectedFiles(openFileDialog.FileNames);
             }
+        }
+
+        private void DropPanel_Click(object? sender, EventArgs e)
+        {
+            Selectfile_Click(sender, e);
+        }
+
+        private void DropPanel_DragEnter(object? sender, DragEventArgs e)
+        {
+            string[] files = GetPdfFilesFromDragData(e.Data);
+            e.Effect = files.Length > 0 ? DragDropEffects.Copy : DragDropEffects.None;
+        }
+
+        private void DropPanel_DragDrop(object? sender, DragEventArgs e)
+        {
+            string[] files = GetPdfFilesFromDragData(e.Data);
+            if (files.Length == 0)
+            {
+                MessageBox.Show("请拖入一个或多个 PDF 文件。");
+                return;
+            }
+
+            UpdateSelectedFiles(files);
         }
 
         private async void Conversion_Click(object? sender, EventArgs e)
@@ -57,85 +76,133 @@ namespace PixPDF
                 return;
             }
 
-            // 禁用按钮，防止重复点击
             conversion.Enabled = false;
             selectfile.Enabled = false;
-            hint.Text = "正在转换，请稍候...";
+            dropPanel.Enabled = false;
             progress.Value = 0;
-            total.Text = "0";
+            total.Text = $"准备转换 0/{selectedFilePaths.Length}";
 
             try
             {
                 await Task.Run(() =>
                 {
-                    foreach (var filePath in selectedFilePaths)
+                    int fileCount = selectedFilePaths.Length;
+
+                    for (int fileIndex = 0; fileIndex < fileCount; fileIndex++)
                     {
-                        ConvertFile(filePath);
+                        string filePath = selectedFilePaths[fileIndex];
+                        ConvertFile(filePath, fileIndex, fileCount);
                     }
                 });
 
                 MessageBox.Show("✅ 所有文件已转换完成！");
+                UpdateSelectedFiles(selectedFilePaths);
+                total.Text = $"已完成 {selectedFilePaths.Length}/{selectedFilePaths.Length}";
+                progress.Value = 100;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"转换过程中出错：{ex.Message}");
+                total.Text = "转换失败";
             }
             finally
             {
-                // 转换完成后恢复按钮
                 conversion.Enabled = true;
                 selectfile.Enabled = true;
-                hint.Text = "请选择 PDF 文件";
+                dropPanel.Enabled = true;
             }
         }
 
-
-        private void ConvertFile(string filePath)
+        private void ConvertFile(string filePath, int fileIndex, int totalFiles)
         {
-            int totalPageCount = 0;
-
-            // 获取原文件的目录和名称
             string directory = Path.GetDirectoryName(filePath) ?? AppDomain.CurrentDomain.BaseDirectory;
             string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(filePath);
+            string outputFolder = GetOutputFolder(directory, fileNameWithoutExtension);
 
-            // 新建一个与 PDF 同名的文件夹
-            string outputFolder = Path.Combine(directory, fileNameWithoutExtension);
-            if (!Directory.Exists(outputFolder))
+            Directory.CreateDirectory(outputFolder);
+
+            if (Path.GetExtension(filePath).Equals(".pdf", StringComparison.OrdinalIgnoreCase))
             {
-                Directory.CreateDirectory(outputFolder);
+                ConvertPdfToImages(filePath, outputFolder, fileNameWithoutExtension, fileIndex, totalFiles);
             }
+        }
 
-
-            // 如果是 PDF 文件
-            if (Path.GetExtension(filePath).ToLower() == ".pdf")
-            {
-                // 将 PDF 转换为图片
-                totalPageCount = ConvertPdfToImages(filePath, outputFolder, fileNameWithoutExtension);
-
-            }
+        private string GetOutputFolder(string directory, string fileNameWithoutExtension)
+        {
+            return subDirectoryOption.Checked
+                ? Path.Combine(directory, fileNameWithoutExtension)
+                : directory;
         }
 
         // PDF 转图片 (使用 PDFtoImage / PDFium)
-        private int ConvertPdfToImages(string pdfFilePath, string outputDirectory, string baseFileName)
+        private void ConvertPdfToImages(string pdfFilePath, string outputDirectory, string baseFileName, int fileIndex, int totalFiles)
         {
             byte[] pdfBytes = File.ReadAllBytes(pdfFilePath);
             int totalPageCount = Conversion.GetPageCount(pdfBytes);
             RenderOptions renderOptions = new RenderOptions(Dpi: 300, UseTiling: true);
 
-            for (int i = 0; i < totalPageCount; i++)
+            for (int pageIndex = 0; pageIndex < totalPageCount; pageIndex++)
             {
-                string outputPath = Path.Combine(outputDirectory, $"{baseFileName}{(i == 0 ? "" : $"{i + 1}")}.jpg");
-                Conversion.SaveJpeg(outputPath, pdfBytes, i, options: renderOptions);
+                string outputPath = Path.Combine(
+                    outputDirectory,
+                    $"{baseFileName}{(pageIndex == 0 ? "" : $"{pageIndex + 1}")}.jpg");
 
-                // 更新 UI
+                Conversion.SaveJpeg(outputPath, pdfBytes, pageIndex, options: renderOptions);
+
                 Invoke(new Action(() =>
                 {
-                    progress.Value = ((i + 1) * 100) / totalPageCount;
-                    total.Text = $"{i + 1}/{totalPageCount}";
+                    progress.Value = (int)Math.Round(((fileIndex + ((pageIndex + 1d) / totalPageCount)) / totalFiles) * 100);
+                    total.Text = $"文件 {fileIndex + 1}/{totalFiles} · 第 {pageIndex + 1}/{totalPageCount} 页";
                 }));
             }
+        }
 
-            return totalPageCount;
+        private void UpdateSelectedFiles(string[]? filePaths)
+        {
+            selectedFilePaths = filePaths?
+                .Where(path => path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            if (selectedFilePaths == null || selectedFilePaths.Length == 0)
+            {
+                selectedFilePaths = null;
+                fileSummaryLabel.Text = "当前未选择文件";
+                dropHintLabel.Text = "拖拽 PDF 到这里，或点击选择文件";
+                total.Text = "未开始转换";
+                progress.Value = 0;
+                return;
+            }
+
+            if (selectedFilePaths.Length == 1)
+            {
+                fileSummaryLabel.Text = Path.GetFileName(selectedFilePaths[0]);
+            }
+            else
+            {
+                string previewNames = string.Join("、", selectedFilePaths.Take(3).Select(Path.GetFileName));
+                if (selectedFilePaths.Length > 3)
+                {
+                    previewNames += $" 等 {selectedFilePaths.Length} 个文件";
+                }
+
+                fileSummaryLabel.Text = previewNames;
+            }
+
+            dropHintLabel.Text = $"已选择 {selectedFilePaths.Length} 个 PDF 文件";
+            total.Text = "等待开始转换";
+        }
+
+        private static string[] GetPdfFilesFromDragData(IDataObject? data)
+        {
+            if (data?.GetData(DataFormats.FileDrop) is not string[] droppedFiles)
+            {
+                return Array.Empty<string>();
+            }
+
+            return droppedFiles
+                .Where(path => File.Exists(path) && path.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
         }
     }
 }

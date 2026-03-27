@@ -1,4 +1,4 @@
-namespace PixPDF
+namespace PdfToImageApp
 {
     internal static class Program
     {

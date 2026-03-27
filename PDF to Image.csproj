@@ -1,0 +1,26 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <AssemblyName>PDF to Image</AssemblyName>
+    <RootNamespace>PdfToImageApp</RootNamespace>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>pixpdf.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="pixpdf.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="pixpdf.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="PDFtoImage" Version="5.2.0" />
+  </ItemGroup>
+
+</Project>

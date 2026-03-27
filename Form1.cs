@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using PDFtoImage;
 
-namespace PixPDF
+namespace PdfToImageApp
 {
     public partial class Form1 : Form
     {

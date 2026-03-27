@@ -1,4 +1,4 @@
-namespace PixPDF
+namespace PdfToImageApp
 {
     partial class Form1
     {
@@ -54,7 +54,7 @@ namespace PixPDF
             titleLabel.Name = "titleLabel";
             titleLabel.Size = new Size(236, 40);
             titleLabel.TabIndex = 0;
-            titleLabel.Text = "PixPDF 转图片";
+            titleLabel.Text = "PDF to Image";
             // 
             // subtitleLabel
             // 
@@ -198,7 +198,7 @@ namespace PixPDF
             Controls.Add(titleLabel);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Name = "Form1";
-            Text = "PixPDF by 龙骑兵 / 里屋";
+            Text = "PDF to Image";
             dropPanel.ResumeLayout(false);
             dropPanel.PerformLayout();
             outputGroup.ResumeLayout(false);
